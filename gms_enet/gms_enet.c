@@ -111,10 +111,10 @@ GMS_EXPORT double gms_enet_host_service(double host_handle, double event_handle,
 }
 
 
-GMS_EXPORT double gms_enet_peer_send(double peer_handle, double packet_handle) {
+GMS_EXPORT double gms_enet_peer_send(double peer_handle, double channel, double packet_handle) {
     ENetPeer* peer = s_peer_list[(size_t)peer_handle];
     ENetPacket* packet = s_packet_list[(size_t)packet_handle];
-    return enet_peer_send(peer, 0, packet) == 0 ? GMS_TRUE : GMS_FALSE;
+    return enet_peer_send(peer, (uint8_t)channel, packet) == 0 ? GMS_TRUE : GMS_FALSE;
 }
 
 GMS_EXPORT double gms_enet_peer_reset(double peer_handle) {
@@ -146,6 +146,11 @@ GMS_EXPORT double gms_enet_event_type_get(double event_handle) {
 GMS_EXPORT double gms_enet_event_packet_get_length(double event_handle) {
     ENetEvent* event = &s_event_list[(size_t)event_handle];
     return (double)event->packet->dataLength;
+}
+
+GMS_EXPORT double gms_enet_event_packet_get_channel(double event_handle) {
+    ENetEvent* event = &s_event_list[(size_t)event_handle];
+    return (double)event->channelID;
 }
 
 GMS_EXPORT double gms_enet_event_packet_read_u8(double event_handle) {
