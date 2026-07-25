@@ -27,6 +27,7 @@ static size_t s_peer_count = 0;
 
 #define GMS_ENET_MAX_EVENT_COUNT 1024
 static ENetEvent s_event_list[GMS_ENET_MAX_EVENT_COUNT] = {0};
+static size_t s_event_packet_reader_offset_list[GMS_ENET_MAX_EVENT_COUNT] = {0};
 static size_t s_event_count = 0;
 
 GMS_EXPORT double gms_enet_initialize() {
@@ -39,179 +40,144 @@ GMS_EXPORT double gms_enet_deinitialize() {
 }
 
 GMS_EXPORT double gms_enet_address_create(char* host, double port) {
-    if (s_address_count >= GMS_ENET_MAX_ADDRESS_COUNT) {
-        return GMS_INVALID_HANDLE;
-    }
-
-    if (enet_address_set_host(&s_address_list[s_address_count], host) != 0) {
-        return GMS_INVALID_HANDLE;
-    }
-
-    if (port < 0.0 || port > UINT16_MAX) {
-        return GMS_INVALID_HANDLE;
-    }
-    s_address_list[s_address_count].port = (uint16_t)port;
-
+    ENetAddress* address = &s_address_list[s_address_count];
+    enet_address_set_host(address, host);
+    address->port = (uint16_t)port;
     return (double)s_address_count++;
 }
 
-static ENetAddress* _get_address(double address_handle) {
-    if (address_handle < 0.0 || address_handle >= s_address_count) {
-        return NULL;
-    }
-
-    return &s_address_list[(size_t)address_handle];
-}
-
 GMS_EXPORT double gms_enet_host_create(double address_handle, double max_peers, double max_channels, double in_bandwidth, double out_bandwidth) {
-    if (s_host_count >= GMS_ENET_MAX_HOST_COUNT) {
-        return GMS_INVALID_HANDLE;
-    }
-    
-    const ENetAddress* address = _get_address(address_handle);
+    const ENetAddress* address = &s_address_list[(size_t)address_handle];
     ENetHost* host = enet_host_create(address, max_peers, max_channels, in_bandwidth, out_bandwidth);
-    if (host == NULL) {
-        return GMS_INVALID_HANDLE;
-    }
     s_host_list[s_host_count] = host;
-    
     return (double)s_host_count++;
 }
 
-static ENetHost* _get_host(double host_handle) {
-    if (host_handle < 0.0 || host_handle >= s_host_count) {
-        return NULL;
-    }
-
-    return s_host_list[(size_t)host_handle];
-}
-
 GMS_EXPORT double gms_enet_host_destroy(double host_handle) {
-    ENetHost* host = _get_host(host_handle);
-    if (host == NULL) {
-        return GMS_FALSE;
-    }
-
+    ENetHost* host = s_host_list[(size_t)host_handle];
     enet_host_destroy(host);
-
     return GMS_TRUE;
 }
 
 GMS_EXPORT double gms_enet_host_connect(double host_handle, double address_handle, double max_channels) {
-    if (s_peer_count >= GMS_ENET_MAX_PEER_COUNT) {
-        return GMS_INVALID_HANDLE;
-    }
-    
-    ENetHost* host = _get_host(host_handle);
-    if (host == NULL) {
-        return GMS_INVALID_HANDLE;
-    }
-
-    const ENetAddress* address = _get_address(address_handle);
-    if (address == NULL) {
-        return GMS_INVALID_HANDLE;
-    }
-
+    ENetHost* host = s_host_list[(size_t)host_handle];
+    const ENetAddress* address = &s_address_list[(size_t)address_handle];
     ENetPeer* peer = enet_host_connect(host, address, max_channels, 0);
-    if (peer == NULL) {
-        return GMS_INVALID_HANDLE;
-    }
     s_peer_list[s_peer_count] = peer;
-
     return (double)s_peer_count++;
 }
 
-static ENetPeer* _get_peer(double peer_handle) {
-    if (peer_handle < 0.0 || peer_handle > s_peer_count) {
-        return NULL;
-    }
-
-    return s_peer_list[(size_t)peer_handle];
-}
-
 GMS_EXPORT double gms_enet_peer_reset(double peer_handle) {
-    ENetPeer* peer = _get_peer(peer_handle);
-    if (peer == NULL) {
-        return GMS_FALSE;
-    }
-
+    ENetPeer* peer = s_peer_list[(size_t)peer_handle];
     enet_peer_reset(peer);
-
     return GMS_TRUE;
 }
 
 GMS_EXPORT double gms_enet_event_create() {
-    if (s_event_count >= GMS_ENET_MAX_EVENT_COUNT) {
-        return GMS_INVALID_HANDLE;
-    }
-
     return (double)s_event_count++;
 }
 
-static ENetEvent* _get_event(double event_handle) {
-    if (event_handle < 0.0 || event_handle >= s_event_count) {
-        return NULL;
-    }
-
-    return &s_event_list[(size_t)event_handle];
-}
-
-GMS_EXPORT double gms_enet_event_get_type(double event_handle) {
-    ENetEvent* event = _get_event(event_handle);
-    if (event == NULL) {
-        return GMS_INVALID_HANDLE;
-    }
-
+GMS_EXPORT double gms_enet_event_type_get(double event_handle) {
+    ENetEvent* event = &s_event_list[(size_t)event_handle];
     return (double)event->type;
 }
 
 GMS_EXPORT double gms_enet_host_service(double host_handle, double event_handle, double timeout) {
-    ENetHost* host = _get_host(host_handle);
-    if (host == NULL) {
-        return GMS_FALSE;
-    }
-
-    ENetEvent* event = _get_event(event_handle);
-    if (event == NULL) {
-        return GMS_FALSE;
-    }
-
-    if (timeout < 0.0 || timeout > UINT32_MAX) {
-        return GMS_FALSE;
-    }
-
-    if (enet_host_service(host, event, (uint32_t)timeout) > 0) {
-        return GMS_TRUE;
-    }
-
-    return GMS_FALSE;
+    ENetHost* host = s_host_list[(size_t)host_handle];
+    ENetEvent* event = &s_event_list[(size_t)event_handle];
+    s_event_packet_reader_offset_list[(size_t)event_handle] = 0;
+    return enet_host_service(host, event, (uint32_t)timeout) > 0 ? GMS_TRUE : GMS_FALSE;
 }
 
-GMS_EXPORT double gms_enet_event_get_packet_length(double event_handle) {
-    ENetEvent* event = _get_event(event_handle);
-    if (event == NULL) {
-        return 0.0;
-    }
-
-    return event->packet->dataLength;
+GMS_EXPORT double gms_enet_event_packet_get_length(double event_handle) {
+    ENetEvent* event = &s_event_list[(size_t)event_handle];;
+    return (double)event->packet->dataLength;
 }
 
-static uint8_t* _buffer_from_str(char* buffer_address_str) {
-    unsigned long long buffer_address = strtoull(buffer_address_str, NULL, 16);
-    return (uint8_t*)buffer_address;
+GMS_EXPORT double gms_enet_event_packet_read_u8(double event_handle) {
+    uint8_t value;
+    ENetEvent* event = &s_event_list[(size_t)event_handle];
+    size_t* offset = &s_event_packet_reader_offset_list[(size_t)event_handle];
+    size_t value_size = sizeof(value);
+    memcpy(&value, event->packet->data + *offset, value_size);
+    *offset += value_size;
+    return (double)value;
 }
 
-GMS_EXPORT double gms_enet_event_get_packet(double event_handle, char* buffer_address_str) {
-    ENetEvent* event = _get_event(event_handle);
-    if (event == NULL) {
-        return GMS_FALSE;
-    }
+GMS_EXPORT double gms_enet_event_packet_read_i8(double event_handle) {
+    int8_t value;
+    ENetEvent* event = &s_event_list[(size_t)event_handle];
+    size_t* offset = &s_event_packet_reader_offset_list[(size_t)event_handle];
+    size_t value_size = sizeof(value);
+    memcpy(&value, event->packet->data + *offset, value_size);
+    *offset += value_size;
+    return (double)value;
+}
 
-    uint8_t* buffer = _buffer_from_str(buffer_address_str);
-    if (buffer == NULL) {
-        return GMS_FALSE;
-    }
+GMS_EXPORT double gms_enet_event_packet_read_u16(double event_handle) {
+    uint16_t value;
+    ENetEvent* event = &s_event_list[(size_t)event_handle];
+    size_t* offset = &s_event_packet_reader_offset_list[(size_t)event_handle];
+    size_t value_size = sizeof(value);
+    memcpy(&value, event->packet->data + *offset, value_size);
+    *offset += value_size;
+    return (double)value;
+}
 
-    memcpy(buffer, event->packet->data, event->packet->dataLength);
+GMS_EXPORT double gms_enet_event_packet_read_i16(double event_handle) {
+    int16_t value;
+    ENetEvent* event = &s_event_list[(size_t)event_handle];
+    size_t* offset = &s_event_packet_reader_offset_list[(size_t)event_handle];
+    size_t value_size = sizeof(value);
+    memcpy(&value, event->packet->data + *offset, value_size);
+    *offset += value_size;
+    return (double)value;
+}
+
+GMS_EXPORT double gms_enet_event_packet_read_u32(double event_handle) {
+    uint32_t value;
+    ENetEvent* event = &s_event_list[(size_t)event_handle];
+    size_t* offset = &s_event_packet_reader_offset_list[(size_t)event_handle];
+    size_t value_size = sizeof(value);
+    memcpy(&value, event->packet->data + *offset, value_size);
+    *offset += value_size;
+    return (double)value;
+}
+
+GMS_EXPORT double gms_enet_event_packet_read_i32(double event_handle) {
+    int32_t value;
+    ENetEvent* event = &s_event_list[(size_t)event_handle];
+    size_t* offset = &s_event_packet_reader_offset_list[(size_t)event_handle];
+    size_t value_size = sizeof(value);
+    memcpy(&value, event->packet->data + *offset, value_size);
+    *offset += value_size;
+    return (double)value;
+}
+
+GMS_EXPORT double gms_enet_event_packet_read_float(double event_handle) {
+    static_assert(sizeof(float) == 4, "sizeof(float) should be 4 bytes!");
+    float value;
+    ENetEvent* event = &s_event_list[(size_t)event_handle];
+    size_t* offset = &s_event_packet_reader_offset_list[(size_t)event_handle];
+    size_t value_size = sizeof(value);
+    memcpy(&value, event->packet->data + *offset, value_size);
+    *offset += value_size;
+    return (double)value;
+}
+
+GMS_EXPORT double gms_enet_event_packet_read_double(double event_handle) {
+    static_assert(sizeof(double) == 8, "sizeof(double) should be 8 bytes!");
+    double value;
+    ENetEvent* event = &s_event_list[(size_t)event_handle];
+    size_t* offset = &s_event_packet_reader_offset_list[(size_t)event_handle];
+    size_t value_size = sizeof(value);
+    memcpy(&value, event->packet->data + *offset, value_size);
+    *offset += value_size;
+    return value;
+}
+
+GMS_EXPORT double gms_enet_event_packet_destroy(double event_handle) {
+    ENetEvent* event = &s_event_list[(size_t)event_handle];
+    enet_packet_destroy(event->packet);
     return GMS_TRUE;
 }
