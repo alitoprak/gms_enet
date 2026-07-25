@@ -1,5 +1,5 @@
 > **Warning**  
-> This extension is in an **experimental state** and may contain critical bugs. Use with caution in production environments.
+> This extension is in an **experimental state** and may contain critical bugs. Use with caution in production environments. You can use [Issues](https://github.com/alitoprak/gms_enet/issues) to report bugs or suggest changes.
 
 # GMS ENet
 
