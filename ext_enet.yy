@@ -85,10 +85,6 @@
   "options":[],
   "optionsFile":"options.json",
   "packageId":"",
-  "parent":{
-    "name":"extensions",
-    "path":"folders/extensions.yy",
-  },
   "productId":"",
   "resourceType":"GMExtension",
   "resourceVersion":"2.0",
